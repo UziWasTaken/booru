@@ -3,10 +3,11 @@ import Head from 'next/head'
 import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/router'
 import styles from '../styles/Home.module.css'
+import { User } from '@supabase/supabase-js'
 
 export default function Home() {
   const router = useRouter()
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState<User | null>(null)
 
   useEffect(() => {
     checkUser()
