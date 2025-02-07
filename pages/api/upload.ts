@@ -31,13 +31,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       uploadDir: '/tmp',
       keepExtensions: true,
       maxFileSize: 10 * 1024 * 1024, // 10MB
+      multiples: true,
+      allowEmptyFiles: false,
+      filter: function ({ mimetype }) {
+        // Accept images and videos
+        return mimetype && (mimetype.includes('image') || mimetype.includes('video'))
+      }
     })
     
     const parseData: [Fields, Files] = await new Promise((resolve, reject) => {
-      form.parse(req, (err, fields, files) => {
-        if (err) reject(err)
-        resolve([fields, files])
-      })
+      try {
+        form.parse(req, (err, fields, files) => {
+          if (err) {
+            console.error('Form parse error:', err)
+            reject(err)
+            return
+          }
+          resolve([fields, files])
+        })
+      } catch (e) {
+        console.error('Form parse exception:', e)
+        reject(e)
+      }
     })
 
     const files = parseData[1]
@@ -47,6 +62,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file
+    if (!uploadedFile.filepath || !uploadedFile.originalFilename) {
+      throw new Error('Invalid file upload')
+    }
+
     const fileContent = fs.readFileSync(uploadedFile.filepath)
 
     const params = {

@@ -18,15 +18,23 @@ export default function Upload() {
     try {
       setLoading(true)
       
-      // Create form data
       const formData = new FormData()
       formData.append('file', file)
 
       // Upload to S3 through API route
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
+        // Remove any Content-Type header to let the browser set it with the boundary
+        headers: {
+          Accept: 'application/json',
+        },
         body: formData,
       })
+
+      if (!uploadRes.ok) {
+        const error = await uploadRes.json()
+        throw new Error(error.message || 'Upload failed')
+      }
 
       const { url, success, message } = await uploadRes.json()
 
@@ -39,7 +47,7 @@ export default function Upload() {
           {
             title: file.name,
             image_url: url,
-            thumbnail_url: url, // For now, using same URL
+            thumbnail_url: url,
             tags: tags,
           }
         ])
