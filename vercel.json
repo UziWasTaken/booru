@@ -8,6 +8,9 @@
     }
   ],
   "env": {
-    "AWS_BUCKET_NAME": "danbooru-uploads-prod"
+    "NEXT_PUBLIC_AWS_ACCESS_KEY_ID": "AKIAW5WU5NZOYL5L66UP",
+    "NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY": "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",
+    "NEXT_PUBLIC_AWS_REGION": "us-east-1",
+    "NEXT_PUBLIC_AWS_BUCKET_NAME": "danbooru-uploads-prod"
   }
 } 
