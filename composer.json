@@ -29,10 +29,12 @@
     }
   ],
   "require": {
-    "php": "^8.2",
+    "php": "^7.4|^8.0",
     "ext-pdo": "*",
-    "ext-json": "*",
-    "ext-fileinfo": "*",
+    "ext-gd": "*",
+    "ext-mbstring": "*",
+    "ext-xml": "*",
+    "ext-zip": "*",
     "ifixit/php-akismet": "^1.0",
     "google/recaptcha": "^1.1",
     "shish/eventtracer-php": "^2.0",
