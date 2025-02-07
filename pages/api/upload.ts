@@ -27,15 +27,24 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const form = formidable()
-    const [fields, files] = await form.parse(req)
+    const form = formidable({
+      uploadDir: '/tmp',
+      keepExtensions: true,
+      maxFileSize: 10 * 1024 * 1024, // 10MB
+    })
     
-    const uploadedFiles = files.file
-    if (!uploadedFiles || uploadedFiles.length === 0) {
+    const [fields, files] = await new Promise((resolve, reject) => {
+      form.parse(req, (err, fields, files) => {
+        if (err) reject(err)
+        resolve([fields, files])
+      })
+    })
+    
+    if (!files.file) {
       throw new Error('No file uploaded')
     }
 
-    const uploadedFile = uploadedFiles[0] as unknown as FormidableFile
+    const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file
     const fileContent = fs.readFileSync(uploadedFile.filepath)
 
     const params = {
@@ -49,7 +58,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const uploadResult = await s3.upload(params).promise()
 
     // Clean up the temp file
-    fs.unlinkSync(uploadedFile.filepath)
+    try {
+      fs.unlinkSync(uploadedFile.filepath)
+    } catch (err) {
+      console.error('Failed to clean up temp file:', err)
+    }
 
     res.status(200).json({ 
       url: uploadResult.Location,
