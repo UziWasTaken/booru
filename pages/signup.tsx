@@ -24,7 +24,7 @@ export default function Signup() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/login`
+          emailRedirectTo: 'https://booru-six.vercel.app/login'
         }
       })
       
@@ -91,4 +91,4 @@ export default function Signup() {
       </div>
     </div>
   )
-} 
+}
