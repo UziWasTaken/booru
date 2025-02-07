@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { Fields, Files } from 'formidable'
+import formidable, { Fields, Files, File } from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -29,18 +29,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     })
 
-    const file = files.file as formidable.File
-    const fileContent = fs.readFileSync(file.filepath)
+    // Check if file exists and get the first file if it's an array
+    const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file
+    if (!uploadedFile) {
+      throw new Error('No file uploaded')
+    }
+
+    const fileContent = fs.readFileSync(uploadedFile.filepath)
 
     const params = {
       Bucket: process.env.AWS_BUCKET_NAME || 'danbooru-uploads-prod',
-      Key: `posts/${Date.now()}-${file.originalFilename}`,
+      Key: `posts/${Date.now()}-${uploadedFile.originalFilename || 'untitled'}`,
       Body: fileContent,
-      ContentType: file.mimetype,
+      ContentType: uploadedFile.mimetype || 'application/octet-stream',
       ACL: 'public-read'
     }
 
     const uploadResult = await s3.upload(params).promise()
+
+    // Clean up the temp file
+    fs.unlinkSync(uploadedFile.filepath)
 
     res.status(200).json({ 
       url: uploadResult.Location,
