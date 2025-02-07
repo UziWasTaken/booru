@@ -32,51 +32,57 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       bucket: process.env.AWS_BUCKET_NAME
     })
 
-    const form = new formidable.IncomingForm({
-      uploadDir: '/tmp',
+    // Create upload directory if it doesn't exist
+    const uploadDir = '/tmp'
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true })
+    }
+
+    const form = formidable({
+      uploadDir,
       keepExtensions: true,
       maxFileSize: 10 * 1024 * 1024, // 10MB
-      multiples: false,
+      filename: (_name, _ext, part) => {
+        return `${Date.now()}-${part.originalFilename}`
+      }
     })
 
-    const formData = await new Promise<{ fields: Fields; files: Files }>((resolve, reject) => {
+    const [fields, files] = await new Promise<[Fields, Files]>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           console.error('Form parse error:', err)
           reject(err)
           return
         }
-        resolve({ fields, files })
+        resolve([fields, files])
       })
     })
 
-    const uploadedFile = formData.files.file
+    const uploadedFile = files.file
     if (!uploadedFile || Array.isArray(uploadedFile)) {
       throw new Error('Invalid file upload')
     }
 
-    const file = uploadedFile as File
-
     console.log('File received:', {
-      name: file.originalFilename,
-      type: file.mimetype,
-      size: file.size
+      name: uploadedFile.originalFilename,
+      type: uploadedFile.mimetype,
+      size: uploadedFile.size
     })
 
     // Verify file exists and is readable
-    if (!fs.existsSync(file.filepath)) {
+    if (!fs.existsSync(uploadedFile.filepath)) {
       throw new Error('Uploaded file not found in temporary storage')
     }
 
-    const fileContent = fs.readFileSync(file.filepath)
+    const fileContent = fs.readFileSync(uploadedFile.filepath)
     console.log('File content read, size:', fileContent.length)
 
-    const key = `posts/${Date.now()}-${file.originalFilename || 'untitled'}`
+    const key = `posts/${Date.now()}-${uploadedFile.originalFilename || 'untitled'}`
     const params = {
       Bucket: process.env.AWS_BUCKET_NAME || 'danbooru-uploads-prod',
       Key: key,
       Body: fileContent,
-      ContentType: file.mimetype || 'application/octet-stream',
+      ContentType: uploadedFile.mimetype || 'application/octet-stream',
       ACL: 'public-read'
     }
 
@@ -90,7 +96,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Clean up temp file
     try {
-      fs.unlinkSync(file.filepath)
+      fs.unlinkSync(uploadedFile.filepath)
       console.log('Temporary file cleaned up')
     } catch (err) {
       console.error('Failed to clean up temp file:', err)

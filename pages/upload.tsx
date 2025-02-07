@@ -20,14 +20,11 @@ export default function Upload() {
       
       const formData = new FormData()
       formData.append('file', file, file.name)
+      formData.append('tags', tags)
 
       // Upload to S3 through API route
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
-        headers: {
-          // Important: Set the proper content type for multipart form data
-          'Accept': 'application/json',
-        },
         body: formData,
       })
 
