@@ -10,6 +10,7 @@ namespace Shimmie2;
 
 require_once "core/sanitize_php.php";
 require_once "core/polyfills.php";
+require_once "core/auth.php";
 
 if (!file_exists("vendor/")) {
     $cwd = getcwd();
@@ -55,6 +56,9 @@ _load_theme_files();
 $page = get_theme_class("Page");
 _load_event_listeners();
 $_tracer->end();
+
+// Check if user is authenticated
+checkAuth();
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *\
 * Send events, display output                                               *

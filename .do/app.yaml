@@ -13,6 +13,10 @@ services:
     value: ${db.USERNAME}
   - key: DB_PASSWORD
     value: ${db.PASSWORD}
+  - key: NEXT_PUBLIC_SUPABASE_URL
+    value: "https://shxpeyjwjjlbqfoclqgu.supabase.co"
+  - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNoeHBleWp3ampsYnFmb2NscWd1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Mzg5NTEyMTEsImV4cCI6MjA1NDUyNzIxMX0.EkwYjvsaiuCVaFt_2b9_cqnrDBrN2w0_2vI9UAVEQd4"
 databases:
 - engine: MYSQL
   name: shimmie-db
