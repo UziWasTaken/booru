@@ -1,28 +1,50 @@
+import { useEffect, useState } from 'react'
 import Head from 'next/head'
-import { useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useRouter } from 'next/router'
+import styles from '../styles/Home.module.css'
 
 export default function Home() {
+  const router = useRouter()
+  const [user, setUser] = useState(null)
+
   useEffect(() => {
-    // Test Supabase connection
-    const testConnection = async () => {
-      const { data, error } = await supabase.from('your_table').select('*').limit(1)
-      console.log('Supabase test:', { data, error })
-    }
-    testConnection()
+    checkUser()
   }, [])
 
+  async function checkUser() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      router.push('/login')
+    } else {
+      setUser(session.user)
+    }
+  }
+
   return (
-    <>
+    <div className={styles.container}>
       <Head>
         <title>Booru Project</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="description" content="Booru Project Gallery" />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
-      <div className="container">
-        <h1>Booru Project</h1>
-        <p>Welcome to the gallery</p>
-      </div>
-    </>
+
+      <main className={styles.main}>
+        <h1 className={styles.title}>Booru Project</h1>
+        <p className={styles.description}>Welcome to the gallery</p>
+        
+        {user && (
+          <button 
+            className={styles.button}
+            onClick={() => {
+              supabase.auth.signOut()
+              router.push('/login')
+            }}
+          >
+            Sign Out
+          </button>
+        )}
+      </main>
+    </div>
   )
 } 
