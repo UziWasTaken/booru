@@ -26,11 +26,9 @@ interface FormidableFile {
   size?: number
 }
 
-interface FormidableResult {
+type FormidableResult = {
   fields: formidable.Fields
-  files: {
-    file: FormidableFile
-  }
+  files: formidable.Files
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -68,11 +66,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           reject(err)
           return
         }
-        resolve({ fields, files: files as { file: FormidableFile } })
+        resolve({ fields, files })
       })
     })
 
-    const uploadedFile = formData.files.file
+    const fileArray = formData.files.file
+    const uploadedFile = Array.isArray(fileArray) ? fileArray[0] : fileArray
+
     if (!uploadedFile) {
       throw new Error('Invalid file upload')
     }
