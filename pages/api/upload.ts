@@ -17,6 +17,12 @@ const s3 = new AWS.S3({
   signatureVersion: 'v4'
 })
 
+// Ensure bucket name is defined
+const BUCKET_NAME = process.env.AWS_BUCKET_NAME
+if (!BUCKET_NAME) {
+  throw new Error('AWS_BUCKET_NAME environment variable is not defined')
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
@@ -69,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Configure the upload parameters
     const uploadParams = {
-      Bucket: process.env.AWS_BUCKET_NAME,
+      Bucket: BUCKET_NAME, // Use the validated bucket name
       Key: key,
       Body: fileContent,
       ContentType: file.mimetype || 'application/octet-stream',
