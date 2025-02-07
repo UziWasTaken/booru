@@ -19,34 +19,34 @@ export default function Upload() {
       setLoading(true)
       
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', file, file.name)
 
       // Upload to S3 through API route
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
         headers: {
-          // Important: Do not set Content-Type header, let the browser handle it
+          // Important: Set the proper content type for multipart form data
+          'Accept': 'application/json',
         },
         body: formData,
       })
 
+      const data = await uploadRes.json()
+
       if (!uploadRes.ok) {
-        const error = await uploadRes.json()
-        throw new Error(error.message || 'Upload failed')
+        throw new Error(data.error || 'Upload failed')
       }
 
-      const { url, success, message } = await uploadRes.json()
-
-      if (!success) throw new Error(message)
+      if (!data.success) throw new Error(data.message)
 
       // Save to Supabase
-      const { data, error: dbError } = await supabase
+      const { error: dbError } = await supabase
         .from('posts')
         .insert([
           {
             title: file.name,
-            image_url: url,
-            thumbnail_url: url,
+            image_url: data.url,
+            thumbnail_url: data.url,
             tags: tags,
           }
         ])
@@ -72,7 +72,17 @@ export default function Upload() {
             <input
               type="file"
               accept="image/*,video/*"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  console.log('Selected file:', {
+                    name: file.name,
+                    type: file.type,
+                    size: file.size
+                  })
+                  setFile(file)
+                }
+              }}
               required
             />
           </div>

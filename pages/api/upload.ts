@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { Fields, Files } from 'formidable'
+import formidable from 'formidable'
 import fs from 'fs'
-import path from 'path'
 
 export const config = {
   api: {
@@ -33,20 +32,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       bucket: process.env.AWS_BUCKET_NAME
     })
 
-    // Ensure tmp directory exists
-    const uploadDir = '/tmp'
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
-
-    const form = formidable({
-      uploadDir,
+    const form = new formidable.IncomingForm({
+      uploadDir: '/tmp',
       keepExtensions: true,
       maxFileSize: 10 * 1024 * 1024, // 10MB
+      multiples: false,
     })
 
-    console.log('Parsing form data...')
-    const [fields, files] = await new Promise<[Fields, Files]>((resolve, reject) => {
+    const [fields, files] = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           console.error('Form parse error:', err)
@@ -57,16 +50,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     })
 
-    if (!files.file) {
-      throw new Error('No file uploaded')
+    const file = files.file
+    if (!file || Array.isArray(file)) {
+      throw new Error('Invalid file upload')
     }
 
-    const file = Array.isArray(files.file) ? files.file[0] : files.file
     console.log('File received:', {
       name: file.originalFilename,
       type: file.mimetype,
-      size: file.size,
-      path: file.filepath
+      size: file.size
     })
 
     // Verify file exists and is readable
@@ -107,17 +99,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       success: true 
     })
   } catch (error: any) {
-    console.error('Upload error details:', {
-      message: error.message,
-      code: error.code,
-      statusCode: error.statusCode,
-      stack: error.stack
-    })
-
+    console.error('Upload error:', error)
     res.status(500).json({ 
       message: 'Upload failed', 
       error: error.message,
-      code: error.code,
       success: false 
     })
   }
