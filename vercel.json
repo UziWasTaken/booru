@@ -8,6 +8,6 @@
     }
   ],
   "env": {
-    "AWS_BUCKET_NAME": "booru-uploads"
+    "AWS_BUCKET_NAME": "danbooru-uploads-prod"
   }
 } 
