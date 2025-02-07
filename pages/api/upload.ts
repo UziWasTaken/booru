@@ -9,15 +9,13 @@ export const config = {
   },
 }
 
-// Configure AWS with debug logging
-AWS.config.update({
+// Configure AWS S3 client
+const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION,
-  logger: console
+  signatureVersion: 'v4'
 })
-
-const s3 = new AWS.S3()
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -36,9 +34,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const form = new IncomingForm({
       uploadDir,
       keepExtensions: true,
-      maxFileSize: 10 * 1024 * 1024, // 10MB
+      maxFileSize: 10 * 1024 * 1024, // 10MB limit
+      multiples: false, // Only accept single file uploads
     })
 
+    // Parse the multipart form data
     const [fields, files] = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
@@ -60,31 +60,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       size: file.size
     })
 
+    // Read the file content
     const fileContent = fs.readFileSync(file.filepath)
 
+    // Generate a unique key for the file
     const key = `posts/${Date.now()}-${file.originalFilename || 'untitled'}`
-    const params = {
-      Bucket: process.env.AWS_BUCKET_NAME || 'danbooru-uploads-prod',
+
+    // Configure the upload parameters
+    const uploadParams = {
+      Bucket: process.env.AWS_BUCKET_NAME,
       Key: key,
       Body: fileContent,
       ContentType: file.mimetype || 'application/octet-stream',
-      ACL: 'public-read'
+      ACL: 'public-read', // Make the file publicly accessible
+      Metadata: {
+        'original-name': file.originalFilename || 'untitled',
+        'upload-date': new Date().toISOString(),
+        'content-type': file.mimetype || 'application/octet-stream'
+      }
     }
 
-    const uploadResult = await s3.upload(params).promise()
+    // Upload to S3
+    console.log('Uploading to S3...')
+    const uploadResult = await s3.upload(uploadParams).promise()
     console.log('S3 upload successful:', uploadResult)
 
-    // Clean up temp file
+    // Clean up temporary file
     try {
       fs.unlinkSync(file.filepath)
+      console.log('Temporary file cleaned up')
     } catch (err) {
       console.error('Failed to clean up temp file:', err)
     }
 
+    // Return the URL of the uploaded file
     res.status(200).json({ 
       url: uploadResult.Location,
+      key: uploadResult.Key,
       success: true 
     })
+
   } catch (error: any) {
     console.error('Upload error:', error)
     res.status(500).json({ 
