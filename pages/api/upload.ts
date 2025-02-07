@@ -25,26 +25,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' })
   }
 
-  // Check content type
-  const contentType = req.headers['content-type']
-  if (!contentType || !contentType.includes('multipart/form-data')) {
-    return res.status(415).json({ 
-      success: false, 
-      error: 'Content type must be multipart/form-data' 
-    })
-  }
-
   try {
     console.log('Starting file upload process...')
-    console.log('AWS Credentials:', {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID?.slice(0, 5) + '...',
-      region: process.env.AWS_REGION,
-      bucket: process.env.AWS_BUCKET_NAME
-    })
+    console.log('Content-Type:', req.headers['content-type']) // Debug log
 
     const bb = busboy({ 
       headers: req.headers,
-      preservePath: true
+      preservePath: true,
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB limit
+      }
     })
 
     let fileData: Buffer | null = null
