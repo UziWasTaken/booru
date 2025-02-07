@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable from 'formidable'
+import formidable, { Fields, Files } from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -22,14 +22,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const form = new formidable.IncomingForm()
-    const { fields, files } = await new Promise((resolve, reject) => {
+    const { fields, files }: { fields: Fields; files: Files } = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) reject(err)
         resolve({ fields, files })
       })
     })
 
-    const file = files.file
+    const file = files.file as formidable.File
     const fileContent = fs.readFileSync(file.filepath)
 
     const params = {
@@ -46,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       url: uploadResult.Location,
       success: true 
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Upload error:', error)
     res.status(500).json({ 
       message: 'Upload failed', 
