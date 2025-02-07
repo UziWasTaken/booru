@@ -86,18 +86,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           console.error('Upload error:', error)
           res.status(500).json({ 
             message: 'Upload failed', 
-            error: error.message,
+            error: error.message || 'Unknown error',
             success: false 
           })
           resolve(null)
         }
       })
 
-      bb.on('error', (err) => {
-        console.error('Busboy error:', err)
+      bb.on('error', (error: Error) => {
+        console.error('Busboy error:', error)
         res.status(500).json({ 
           message: 'Upload failed', 
-          error: err.message,
+          error: error.message || 'Unknown error',
           success: false 
         })
         resolve(null)
@@ -109,7 +109,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('Upload error:', error)
     res.status(500).json({ 
       message: 'Upload failed', 
-      error: error.message,
+      error: error.message || 'Unknown error',
       success: false 
     })
   }
