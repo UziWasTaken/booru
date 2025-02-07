@@ -7,7 +7,8 @@ const nextConfig = {
       'shxpeyjwjjlbqfoclqgu.supabase.co'
     ]
   },
-  output: 'standalone',
+  // Remove standalone output
+  // output: 'standalone',
   // Add this to ensure proper routing
   trailingSlash: false,
   async headers() {
@@ -17,7 +18,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Content-Type',
-            value: 'text/html'
+            value: 'text/html; charset=utf-8'
           }
         ]
       }
