@@ -25,6 +25,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ message: 'Method not allowed' })
   }
 
+  // Check content type
+  const contentType = req.headers['content-type']
+  if (!contentType || !contentType.includes('multipart/form-data')) {
+    return res.status(415).json({ 
+      success: false, 
+      error: 'Content type must be multipart/form-data' 
+    })
+  }
+
   try {
     console.log('Starting file upload process...')
     console.log('AWS Credentials:', {
@@ -33,12 +42,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       bucket: process.env.AWS_BUCKET_NAME
     })
 
-    const bb = busboy({ headers: req.headers })
+    const bb = busboy({ 
+      headers: req.headers,
+      preservePath: true
+    })
+
     let fileData: Buffer | null = null
     let fileName = ''
     let mimeType = ''
+    let tags = ''
 
     return new Promise((resolve, reject) => {
+      // Handle file upload
       bb.on('file', (name, file, info) => {
         const chunks: Buffer[] = []
         fileName = info.filename
@@ -51,6 +66,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         file.on('end', () => {
           fileData = Buffer.concat(chunks)
         })
+      })
+
+      // Handle form fields
+      bb.on('field', (name, val) => {
+        if (name === 'tags') {
+          tags = val
+        }
       })
 
       bb.on('finish', async () => {

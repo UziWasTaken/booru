@@ -25,6 +25,9 @@ export default function Upload() {
       // Upload to S3 through API route
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
         body: formData,
       })
 
