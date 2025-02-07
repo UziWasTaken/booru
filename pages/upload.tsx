@@ -40,8 +40,8 @@ export default function Upload() {
       if (error) throw error
       
       router.push('/')
-    } catch (err) {
-      setError('Upload failed: ' + err.message)
+    } catch (err: any) { // Type assertion for error handling
+      setError('Upload failed: ' + (err.message || 'Unknown error'))
     } finally {
       setLoading(false)
     }

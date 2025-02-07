@@ -11,7 +11,7 @@ export const s3 = new AWS.S3()
 export async function uploadToS3(file: File, path: string): Promise<string> {
   const fileBuffer = Buffer.from(await file.arrayBuffer())
   const params = {
-    Bucket: 'your-bucket-name',
+    Bucket: process.env.AWS_BUCKET_NAME || 'booru-uploads',
     Key: `${path}/${Date.now()}-${file.name}`,
     Body: fileBuffer,
     ContentType: file.type,

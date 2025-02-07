@@ -6,5 +6,8 @@
       "src": "package.json",
       "use": "@vercel/next"
     }
-  ]
+  ],
+  "env": {
+    "AWS_BUCKET_NAME": "booru-uploads"
+  }
 } 
