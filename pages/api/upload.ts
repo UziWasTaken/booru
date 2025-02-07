@@ -9,6 +9,10 @@ export const config = {
   },
 }
 
+if (!process.env.AWS_BUCKET_NAME) {
+  throw new Error('AWS_BUCKET_NAME environment variable is not defined')
+}
+
 // Configure AWS S3 client
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -17,10 +21,18 @@ const s3 = new AWS.S3({
   signatureVersion: 'v4'
 })
 
-// Ensure bucket name is defined
-const BUCKET_NAME = process.env.AWS_BUCKET_NAME
-if (!BUCKET_NAME) {
-  throw new Error('AWS_BUCKET_NAME environment variable is not defined')
+// Type for S3 upload parameters
+type UploadParams = AWS.S3.PutObjectRequest & {
+  Bucket: string;
+  Key: string;
+  Body: Buffer;
+  ContentType: string;
+  ACL: string;
+  Metadata: {
+    'original-name': string;
+    'upload-date': string;
+    'content-type': string;
+  };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -73,13 +85,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Generate a unique key for the file
     const key = `posts/${Date.now()}-${file.originalFilename || 'untitled'}`
 
-    // Configure the upload parameters
-    const uploadParams = {
-      Bucket: BUCKET_NAME, // Use the validated bucket name
+    // Configure the upload parameters with proper typing
+    const uploadParams: UploadParams = {
+      Bucket: process.env.AWS_BUCKET_NAME!,
       Key: key,
       Body: fileContent,
       ContentType: file.mimetype || 'application/octet-stream',
-      ACL: 'public-read', // Make the file publicly accessible
+      ACL: 'public-read',
       Metadata: {
         'original-name': file.originalFilename || 'untitled',
         'upload-date': new Date().toISOString(),
