@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import { IncomingForm } from 'formidable'
+import { IncomingForm, Fields, Files } from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -39,7 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     // Parse the multipart form data
-    const [fields, files] = await new Promise((resolve, reject) => {
+    const formData = await new Promise<[Fields, Files]>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           reject(err)
@@ -49,6 +49,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     })
 
+    const [fields, files] = formData
     const file = Array.isArray(files.file) ? files.file[0] : files.file
     if (!file) {
       throw new Error('No file uploaded')
