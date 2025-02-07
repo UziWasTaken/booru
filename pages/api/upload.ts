@@ -54,26 +54,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       uploadDir,
       keepExtensions: true,
       maxFileSize: 10 * 1024 * 1024, // 10MB
-      filename: (_name, _ext, part) => {
-        return `${Date.now()}-${part.originalFilename}`
-      }
+      multiples: false,
+      allowEmptyFiles: false,
+      filter: ({ mimetype }) => {
+        // Accept images and videos
+        return Boolean(mimetype && (mimetype.includes('image') || mimetype.includes('video')))
+      },
+      // This is important for parsing multipart form data
+      encoding: 'utf-8',
+      hashAlgorithm: false,
     })
 
-    const formData = await new Promise<FormidableResult>((resolve, reject) => {
+    const [fields, files] = await new Promise<[formidable.Fields, formidable.Files]>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           console.error('Form parse error:', err)
           reject(err)
           return
         }
-        resolve({ fields, files })
+        resolve([fields, files])
       })
     })
 
-    const fileArray = formData.files.file
-    const uploadedFile = Array.isArray(fileArray) ? fileArray[0] : fileArray
-
-    if (!uploadedFile) {
+    const uploadedFile = files.file
+    if (!uploadedFile || Array.isArray(uploadedFile)) {
       throw new Error('Invalid file upload')
     }
 

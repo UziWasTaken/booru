@@ -19,7 +19,7 @@ export default function Upload() {
       setLoading(true)
       
       const formData = new FormData()
-      formData.append('file', file, file.name)
+      formData.append('file', file)
       formData.append('tags', tags)
 
       // Upload to S3 through API route
