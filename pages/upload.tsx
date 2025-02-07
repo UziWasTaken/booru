@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
-import { uploadToS3 } from '../lib/aws'
 import Navbar from '../components/Navbar'
 import styles from '../styles/Upload.module.css'
 
@@ -19,28 +18,36 @@ export default function Upload() {
     try {
       setLoading(true)
       
-      // Upload to S3
-      const imageUrl = await uploadToS3(file, 'posts')
-      
-      // Create thumbnail (you might want to implement thumbnail generation)
-      const thumbnailUrl = imageUrl // For now, using same URL
+      // Create form data
+      const formData = new FormData()
+      formData.append('file', file)
+
+      // Upload to S3 through API route
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const { url, success, message } = await uploadRes.json()
+
+      if (!success) throw new Error(message)
 
       // Save to Supabase
-      const { data, error } = await supabase
+      const { data, error: dbError } = await supabase
         .from('posts')
         .insert([
           {
             title: file.name,
-            image_url: imageUrl,
-            thumbnail_url: thumbnailUrl,
+            image_url: url,
+            thumbnail_url: url, // For now, using same URL
             tags: tags,
           }
         ])
 
-      if (error) throw error
+      if (dbError) throw dbError
       
       router.push('/')
-    } catch (err: any) { // Type assertion for error handling
+    } catch (err: any) {
       setError('Upload failed: ' + (err.message || 'Unknown error'))
     } finally {
       setLoading(false)
