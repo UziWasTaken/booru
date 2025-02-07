@@ -26,6 +26,13 @@ interface FormidableFile {
   size?: number
 }
 
+interface FormidableResult {
+  fields: formidable.Fields
+  files: {
+    file: FormidableFile
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
@@ -54,18 +61,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     })
 
-    const [fields, files] = await new Promise((resolve, reject) => {
+    const formData = await new Promise<FormidableResult>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           console.error('Form parse error:', err)
           reject(err)
           return
         }
-        resolve([fields, files] as [any, { file: FormidableFile }])
+        resolve({ fields, files: files as { file: FormidableFile } })
       })
     })
 
-    const uploadedFile = files.file
+    const uploadedFile = formData.files.file
     if (!uploadedFile) {
       throw new Error('Invalid file upload')
     }
