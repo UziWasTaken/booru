@@ -39,21 +39,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       multiples: false,
     })
 
-    const formData = await new Promise<{ fields: Fields; files: { file: File } }>((resolve, reject) => {
+    const formData = await new Promise<{ fields: Fields; files: Files }>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           console.error('Form parse error:', err)
           reject(err)
           return
         }
-        resolve({ fields, files: files as { file: File } })
+        resolve({ fields, files })
       })
     })
 
-    const file = formData.files.file
-    if (!file) {
+    const uploadedFile = formData.files.file
+    if (!uploadedFile || Array.isArray(uploadedFile)) {
       throw new Error('Invalid file upload')
     }
+
+    const file = uploadedFile as File
 
     console.log('File received:', {
       name: file.originalFilename,
