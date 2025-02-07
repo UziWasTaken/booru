@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable from 'formidable'
+import formidable, { Fields, Files } from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -33,12 +33,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       maxFileSize: 10 * 1024 * 1024, // 10MB
     })
     
-    const [fields, files] = await new Promise((resolve, reject) => {
+    const parseData: [Fields, Files] = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) reject(err)
         resolve([fields, files])
       })
     })
+
+    const files = parseData[1]
     
     if (!files.file) {
       throw new Error('No file uploaded')
