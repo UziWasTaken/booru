@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRouter } from 'next/router'
 import styles from '../styles/Auth.module.css'
+import { AuthError } from '@supabase/supabase-js'
 
 export default function Login() {
   const router = useRouter()
@@ -18,7 +19,8 @@ export default function Login() {
       })
       if (error) throw error
       router.push('/')
-    } catch (error) {
+    } catch (err) {
+      const error = err as AuthError
       setError(error.message)
     }
   }
@@ -53,7 +55,7 @@ export default function Login() {
         </form>
         <p>
           Don't have an account?{' '}
-          <a onClick={() => router.push('/signup')}>Sign Up</a>
+          <a onClick={() => router.push('/signup')} style={{ cursor: 'pointer', color: '#0070f3' }}>Sign Up</a>
         </p>
       </div>
     </div>
