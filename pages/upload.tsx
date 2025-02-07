@@ -24,9 +24,8 @@ export default function Upload() {
       // Upload to S3 through API route
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
-        // Remove any Content-Type header to let the browser set it with the boundary
         headers: {
-          Accept: 'application/json',
+          // Important: Do not set Content-Type header, let the browser handle it
         },
         body: formData,
       })

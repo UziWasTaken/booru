@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { Fields, Files, Part } from 'formidable'
+import formidable, { Fields, Files } from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -15,12 +15,6 @@ const s3 = new AWS.S3({
   region: process.env.AWS_REGION
 })
 
-interface FormidableFile {
-  filepath: string
-  originalFilename: string
-  mimetype: string
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
@@ -31,56 +25,41 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       uploadDir: '/tmp',
       keepExtensions: true,
       maxFileSize: 10 * 1024 * 1024, // 10MB
-      multiples: true,
-      allowEmptyFiles: false,
-      filter: function (part: Part): boolean {
-        const mimetype = part.mimetype || ''
-        return Boolean(mimetype && (mimetype.includes('image') || mimetype.includes('video')))
-      }
-    })
-    
-    const parseData: [Fields, Files] = await new Promise((resolve, reject) => {
-      try {
-        form.parse(req, (err, fields, files) => {
-          if (err) {
-            console.error('Form parse error:', err)
-            reject(err)
-            return
-          }
-          resolve([fields, files])
-        })
-      } catch (e) {
-        console.error('Form parse exception:', e)
-        reject(e)
-      }
+      encoding: 'utf-8',
+      keepExtensions: true,
     })
 
-    const files = parseData[1]
-    
+    const [fields, files] = await new Promise<[Fields, Files]>((resolve, reject) => {
+      form.parse(req, (err, fields, files) => {
+        if (err) {
+          console.error('Form parse error:', err)
+          reject(err)
+          return
+        }
+        resolve([fields, files])
+      })
+    })
+
     if (!files.file) {
       throw new Error('No file uploaded')
     }
 
-    const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file
-    if (!uploadedFile.filepath || !uploadedFile.originalFilename) {
-      throw new Error('Invalid file upload')
-    }
-
-    const fileContent = fs.readFileSync(uploadedFile.filepath)
+    const file = Array.isArray(files.file) ? files.file[0] : files.file
+    const fileContent = fs.readFileSync(file.filepath)
 
     const params = {
       Bucket: process.env.AWS_BUCKET_NAME || 'danbooru-uploads-prod',
-      Key: `posts/${Date.now()}-${uploadedFile.originalFilename || 'untitled'}`,
+      Key: `posts/${Date.now()}-${file.originalFilename || 'untitled'}`,
       Body: fileContent,
-      ContentType: uploadedFile.mimetype || 'application/octet-stream',
+      ContentType: file.mimetype || 'application/octet-stream',
       ACL: 'public-read'
     }
 
     const uploadResult = await s3.upload(params).promise()
 
-    // Clean up the temp file
+    // Clean up temp file
     try {
-      fs.unlinkSync(uploadedFile.filepath)
+      fs.unlinkSync(file.filepath)
     } catch (err) {
       console.error('Failed to clean up temp file:', err)
     }
