@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { Fields, Files } from 'formidable'
+import formidable, { Fields, Files, Part } from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -33,9 +33,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       maxFileSize: 10 * 1024 * 1024, // 10MB
       multiples: true,
       allowEmptyFiles: false,
-      filter: function ({ mimetype }) {
-        // Accept images and videos
-        return mimetype && (mimetype.includes('image') || mimetype.includes('video'))
+      filter: function (part: Part): boolean {
+        const mimetype = part.mimetype || ''
+        return Boolean(mimetype && (mimetype.includes('image') || mimetype.includes('video')))
       }
     })
     
