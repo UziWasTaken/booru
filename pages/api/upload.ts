@@ -1,7 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { File } from 'formidable'
+import busboy from 'busboy'
 import fs from 'fs'
+import path from 'path'
 
 export const config = {
   api: {
@@ -32,85 +33,77 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       bucket: process.env.AWS_BUCKET_NAME
     })
 
-    // Create upload directory if it doesn't exist
-    const uploadDir = '/tmp'
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
+    const bb = busboy({ headers: req.headers })
+    let fileData: Buffer | null = null
+    let fileName = ''
+    let mimeType = ''
 
-    const form = formidable({
-      uploadDir,
-      keepExtensions: true,
-      maxFileSize: 10 * 1024 * 1024, // 10MB
-      multiples: false,
-      allowEmptyFiles: false,
-      filter: ({ mimetype }) => {
-        // Accept images and videos
-        return Boolean(mimetype && (mimetype.includes('image') || mimetype.includes('video')))
-      },
-      // This is important for parsing multipart form data
-      encoding: 'utf-8',
-      hashAlgorithm: false,
-    })
+    return new Promise((resolve, reject) => {
+      bb.on('file', (name, file, info) => {
+        const chunks: Buffer[] = []
+        fileName = info.filename
+        mimeType = info.mimeType
 
-    const formData = await new Promise<{ fields: any; files: { file: File } }>((resolve, reject) => {
-      form.parse(req, (err, fields, files) => {
-        if (err) {
-          console.error('Form parse error:', err)
-          reject(err)
-          return
-        }
-        resolve({ fields, files: files as any })
+        file.on('data', (data) => {
+          chunks.push(data)
+        })
+
+        file.on('end', () => {
+          fileData = Buffer.concat(chunks)
+        })
       })
-    })
 
-    const uploadedFile = formData.files.file
-    if (!uploadedFile) {
-      throw new Error('No file uploaded')
-    }
+      bb.on('finish', async () => {
+        try {
+          if (!fileData) {
+            res.status(400).json({ success: false, error: 'No file uploaded' })
+            return resolve(null)
+          }
 
-    console.log('File received:', {
-      name: uploadedFile.originalFilename,
-      type: uploadedFile.mimetype,
-      size: uploadedFile.size
-    })
+          const key = `posts/${Date.now()}-${fileName}`
+          const params = {
+            Bucket: process.env.AWS_BUCKET_NAME || 'danbooru-uploads-prod',
+            Key: key,
+            Body: fileData,
+            ContentType: mimeType,
+            ACL: 'public-read'
+          }
 
-    // Verify file exists and is readable
-    if (!fs.existsSync(uploadedFile.filepath)) {
-      throw new Error('Uploaded file not found in temporary storage')
-    }
+          console.log('Starting S3 upload with params:', {
+            ...params,
+            Body: `<${fileData.length} bytes>`
+          })
 
-    const fileContent = fs.readFileSync(uploadedFile.filepath)
-    console.log('File content read, size:', fileContent.length)
+          const uploadResult = await s3.upload(params).promise()
+          console.log('S3 upload successful:', uploadResult)
 
-    const key = `posts/${Date.now()}-${uploadedFile.originalFilename || 'untitled'}`
-    const params = {
-      Bucket: process.env.AWS_BUCKET_NAME || 'danbooru-uploads-prod',
-      Key: key,
-      Body: fileContent,
-      ContentType: uploadedFile.mimetype || 'application/octet-stream',
-      ACL: 'public-read'
-    }
+          res.status(200).json({ 
+            url: uploadResult.Location,
+            success: true 
+          })
+          resolve(null)
+        } catch (error: any) {
+          console.error('Upload error:', error)
+          res.status(500).json({ 
+            message: 'Upload failed', 
+            error: error.message,
+            success: false 
+          })
+          resolve(null)
+        }
+      })
 
-    console.log('Starting S3 upload with params:', {
-      ...params,
-      Body: `<${fileContent.length} bytes>`
-    })
+      bb.on('error', (err) => {
+        console.error('Busboy error:', err)
+        res.status(500).json({ 
+          message: 'Upload failed', 
+          error: err.message,
+          success: false 
+        })
+        resolve(null)
+      })
 
-    const uploadResult = await s3.upload(params).promise()
-    console.log('S3 upload successful:', uploadResult)
-
-    // Clean up temp file
-    try {
-      fs.unlinkSync(uploadedFile.filepath)
-      console.log('Temporary file cleaned up')
-    } catch (err) {
-      console.error('Failed to clean up temp file:', err)
-    }
-
-    res.status(200).json({ 
-      url: uploadResult.Location,
-      success: true 
+      req.pipe(bb)
     })
   } catch (error: any) {
     console.error('Upload error:', error)
