@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { File } from 'formidable'
+import formidable from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -20,6 +20,14 @@ const s3 = new AWS.S3({
   region: process.env.AWS_REGION,
   signatureVersion: 'v4'
 })
+
+interface FormidableFile {
+  filepath: string
+  newFilename?: string
+  originalFilename?: string
+  mimetype?: string
+  size?: number
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -51,17 +59,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const form = formidable(options)
 
-    const [fields, files] = await new Promise<[formidable.Fields, formidable.Files<File>]>((resolve, reject) => {
+    const [fields, files] = await new Promise<[formidable.Fields, { file: FormidableFile }]>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           reject(err)
           return
         }
-        resolve([fields, files])
+        resolve([fields, files as { file: FormidableFile }])
       })
     })
 
-    const uploadedFile = files.file as File
+    const uploadedFile = files.file
     if (!uploadedFile) {
       throw new Error('Invalid file upload')
     }
