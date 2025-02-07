@@ -25,8 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       uploadDir: '/tmp',
       keepExtensions: true,
       maxFileSize: 10 * 1024 * 1024, // 10MB
-      encoding: 'utf-8',
-      keepExtensions: true,
+      encoding: 'utf-8'
     })
 
     const [fields, files] = await new Promise<[Fields, Files]>((resolve, reject) => {
