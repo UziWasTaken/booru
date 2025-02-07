@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { Fields, Files, File } from 'formidable'
+import formidable from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -15,26 +15,27 @@ const s3 = new AWS.S3({
   region: process.env.AWS_REGION
 })
 
+interface FormidableFile {
+  filepath: string
+  originalFilename: string
+  mimetype: string
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
   }
 
   try {
-    const form = new formidable.IncomingForm()
-    const { fields, files }: { fields: Fields; files: Files } = await new Promise((resolve, reject) => {
-      form.parse(req, (err, fields, files) => {
-        if (err) reject(err)
-        resolve({ fields, files })
-      })
-    })
-
-    // Check if file exists and get the first file if it's an array
-    const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file
-    if (!uploadedFile) {
+    const form = formidable()
+    const [fields, files] = await form.parse(req)
+    
+    const uploadedFiles = files.file
+    if (!uploadedFiles || uploadedFiles.length === 0) {
       throw new Error('No file uploaded')
     }
 
+    const uploadedFile = uploadedFiles[0] as unknown as FormidableFile
     const fileContent = fs.readFileSync(uploadedFile.filepath)
 
     const params = {
