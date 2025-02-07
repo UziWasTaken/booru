@@ -48,7 +48,14 @@
   background: #0051cc;
 }
 
+.success {
+  color: #0070f3;
+  margin: 1rem 0;
+  text-align: center;
+}
+
 .error {
   color: red;
   margin: 1rem 0;
+  text-align: center;
 } 
