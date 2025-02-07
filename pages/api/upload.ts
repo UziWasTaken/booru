@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import { IncomingForm, Fields, Files } from 'formidable'
+import formidable from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -21,20 +21,6 @@ const s3 = new AWS.S3({
   signatureVersion: 'v4'
 })
 
-// Type for S3 upload parameters
-type UploadParams = AWS.S3.PutObjectRequest & {
-  Bucket: string;
-  Key: string;
-  Body: Buffer;
-  ContentType: string;
-  ACL: string;
-  Metadata: {
-    'original-name': string;
-    'upload-date': string;
-    'content-type': string;
-  };
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).json({ message: 'Method not allowed' })
@@ -49,15 +35,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       fs.mkdirSync(uploadDir, { recursive: true })
     }
 
-    const form = new IncomingForm({
+    const options: formidable.Options = {
       uploadDir,
       keepExtensions: true,
-      maxFileSize: 10 * 1024 * 1024, // 10MB limit
-      multiples: false, // Only accept single file uploads
-    })
+      maxFileSize: 10 * 1024 * 1024, // 10MB
+      multiples: false,
+      filename: (_name, _ext, part) => {
+        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`
+        return `${uniqueSuffix}-${part.originalFilename}`
+      },
+      filter: (part) => {
+        return part.name === 'file' && (part.mimetype?.includes('image/') || part.mimetype?.includes('video/')) || false
+      }
+    }
 
-    // Parse the multipart form data
-    const formData = await new Promise<[Fields, Files]>((resolve, reject) => {
+    const form = formidable(options)
+
+    const [fields, files] = await new Promise<[formidable.Fields, formidable.Files]>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           reject(err)
@@ -67,52 +61,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     })
 
-    const [fields, files] = formData
-    const file = Array.isArray(files.file) ? files.file[0] : files.file
-    if (!file) {
-      throw new Error('No file uploaded')
+    const uploadedFile = files.file
+    if (!uploadedFile || Array.isArray(uploadedFile)) {
+      throw new Error('Invalid file upload')
     }
 
     console.log('File received:', {
-      name: file.originalFilename,
-      type: file.mimetype,
-      size: file.size
+      name: uploadedFile.originalFilename,
+      type: uploadedFile.mimetype,
+      size: uploadedFile.size
     })
 
-    // Read the file content
-    const fileContent = fs.readFileSync(file.filepath)
+    const fileContent = fs.readFileSync(uploadedFile.filepath)
 
-    // Generate a unique key for the file
-    const key = `posts/${Date.now()}-${file.originalFilename || 'untitled'}`
-
-    // Configure the upload parameters with proper typing
-    const uploadParams: UploadParams = {
-      Bucket: process.env.AWS_BUCKET_NAME!,
-      Key: key,
+    const uploadParams = {
+      Bucket: process.env.AWS_BUCKET_NAME,
+      Key: `posts/${uploadedFile.newFilename || uploadedFile.originalFilename}`,
       Body: fileContent,
-      ContentType: file.mimetype || 'application/octet-stream',
+      ContentType: uploadedFile.mimetype || 'application/octet-stream',
       ACL: 'public-read',
       Metadata: {
-        'original-name': file.originalFilename || 'untitled',
+        'original-name': uploadedFile.originalFilename || 'untitled',
         'upload-date': new Date().toISOString(),
-        'content-type': file.mimetype || 'application/octet-stream'
+        'content-type': uploadedFile.mimetype || 'application/octet-stream'
       }
     }
 
-    // Upload to S3
     console.log('Uploading to S3...')
     const uploadResult = await s3.upload(uploadParams).promise()
     console.log('S3 upload successful:', uploadResult)
 
-    // Clean up temporary file
     try {
-      fs.unlinkSync(file.filepath)
+      fs.unlinkSync(uploadedFile.filepath)
       console.log('Temporary file cleaned up')
     } catch (err) {
       console.error('Failed to clean up temp file:', err)
     }
 
-    // Return the URL of the uploaded file
     res.status(200).json({ 
       url: uploadResult.Location,
       key: uploadResult.Key,
