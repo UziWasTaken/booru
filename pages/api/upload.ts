@@ -19,10 +19,7 @@ if (!process.env.AWS_BUCKET_NAME) {
 // Parse form data
 const parseForm = (req: NextApiRequest) => {
   return new Promise<{ fields: any; files: any }>((resolve, reject) => {
-    const form = new multiparty.Form({
-      maxFilesSize: 160 * 1024 * 1024 // 160MB - matching S3 console limit
-    })
-
+    const form = new multiparty.Form()
     form.parse(req, (err, fields, files) => {
       if (err) reject(err)
       resolve({ fields, files })
@@ -53,32 +50,27 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Read file content
     const fileContent = await fs.promises.readFile(file.path)
 
-    // Generate a unique key
-    const timestamp = Date.now()
-    const uniqueKey = `uploads/${timestamp}-${file.originalFilename}`
-
     // Upload to S3
     const command = new PutObjectCommand({
       Bucket: process.env.AWS_BUCKET_NAME,
-      Key: uniqueKey,
+      Key: `uploads/${Date.now()}-${file.originalFilename}`,
       Body: fileContent,
       ContentType: file.headers['content-type'],
       ACL: 'public-read'
     })
 
-    const response = await s3Client.send(command)
-    console.log('Upload successful:', response)
+    await s3Client.send(command)
 
     // Clean up temp file
     await fs.promises.unlink(file.path)
 
     // Construct the URL
-    const url = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueKey}`
+    const url = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/uploads/${file.originalFilename}`
 
     return res.status(200).json({
       success: true,
       url,
-      key: uniqueKey
+      key: `uploads/${file.originalFilename}`
     })
 
   } catch (error: any) {

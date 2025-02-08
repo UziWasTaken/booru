@@ -28,9 +28,10 @@ export default function Upload() {
         size: file.size
       })
 
-      // Don't set any headers, let the browser handle it
+      // Set proper headers for multipart form data
       const response = await fetch('/api/upload', {
         method: 'POST',
+        // Let browser set the Content-Type header automatically
         body: formData
       })
 
