@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable from 'formidable'
+import formidable, { File } from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -20,14 +20,6 @@ const s3 = new AWS.S3({
   region: process.env.AWS_REGION,
   signatureVersion: 'v4'
 })
-
-interface FormidableFile {
-  filepath: string
-  newFilename?: string
-  originalFilename?: string
-  mimetype?: string
-  size?: number
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -59,17 +51,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const form = formidable(options)
 
-    const [fields, files] = await new Promise<[formidable.Fields, { file: FormidableFile }]>((resolve, reject) => {
+    const [fields, files] = await new Promise<[formidable.Fields, formidable.Files]>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           reject(err)
           return
         }
-        resolve([fields, files as { file: FormidableFile }])
+        resolve([fields, files])
       })
     })
 
-    const uploadedFile = files.file
+    const uploadedFile = files.file as File
     if (!uploadedFile) {
       throw new Error('Invalid file upload')
     }
@@ -83,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const fileContent = fs.readFileSync(uploadedFile.filepath)
 
     const uploadParams = {
-      Bucket: process.env.AWS_BUCKET_NAME,
+      Bucket: process.env.AWS_BUCKET_NAME!,
       Key: `posts/${uploadedFile.newFilename || uploadedFile.originalFilename}`,
       Body: fileContent,
       ContentType: uploadedFile.mimetype || 'application/octet-stream',
