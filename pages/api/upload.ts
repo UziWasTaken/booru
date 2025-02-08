@@ -46,7 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     })
 
-    const uploadedFile = files.file as File
+    const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file
     if (!uploadedFile) {
       throw new Error('No file uploaded')
     }
