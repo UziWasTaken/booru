@@ -1,20 +1,15 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
 import multiparty from 'multiparty'
 import fs from 'fs'
-import { s3Client } from '../../lib/aws-config'
 
 export const config = {
   api: {
     bodyParser: false,
-    // Increase max payload size
-    maxBodySize: '160mb' // Match S3 console limit
+    maxBodySize: '100mb'
   },
 }
 
-if (!process.env.AWS_BUCKET_NAME) {
-  throw new Error('AWS_BUCKET_NAME environment variable is not defined')
-}
+const BUNNY_STORAGE_API = 'https://ny.storage.bunnycdn.com'
 
 // Parse form data
 const parseForm = (req: NextApiRequest) => {
@@ -49,41 +44,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Read file content
     const fileContent = await fs.promises.readFile(file.path)
+    const fileName = `${Date.now()}-${file.originalFilename}`
+    const fullPath = `images/${fileName}`
 
-    // Upload to S3
-    const command = new PutObjectCommand({
-      Bucket: process.env.AWS_BUCKET_NAME,
-      Key: `uploads/${Date.now()}-${file.originalFilename}`,
-      Body: fileContent,
-      ContentType: file.headers['content-type'],
-      ACL: 'public-read'
-    })
+    // Upload to Bunny Storage
+    const uploadResponse = await fetch(
+      `${BUNNY_STORAGE_API}/${process.env.BUNNY_STORAGE_ZONE}/${fullPath}`,
+      {
+        method: 'PUT',
+        headers: {
+          'AccessKey': process.env.BUNNY_API_KEY!,
+          'Content-Type': file.headers['content-type'],
+        },
+        body: fileContent,
+      }
+    )
 
-    await s3Client.send(command)
+    if (!uploadResponse.ok) {
+      throw new Error(`Bunny upload failed: ${uploadResponse.statusText}`)
+    }
 
     // Clean up temp file
     await fs.promises.unlink(file.path)
 
-    // Construct the URL
-    const url = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/uploads/${file.originalFilename}`
+    // Return CDN URL with your custom domain
+    const cdnUrl = `${process.env.BUNNY_CDN_URL}/${fullPath}`
 
     return res.status(200).json({
       success: true,
-      url,
-      key: `uploads/${file.originalFilename}`
+      url: cdnUrl,
+      key: fullPath
     })
 
   } catch (error: any) {
     console.error('Upload error:', error)
-    
-    // Handle specific S3 errors
-    if (error.name === 'EntityTooLarge') {
-      return res.status(413).json({
-        success: false,
-        error: 'File too large. Maximum size is 160MB.'
-      })
-    }
-
     return res.status(500).json({
       success: false,
       error: error.message

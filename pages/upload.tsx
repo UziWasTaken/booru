@@ -22,16 +22,8 @@ export default function Upload() {
       formData.append('file', file)
       formData.append('tags', tags)
 
-      console.log('Uploading file:', {
-        name: file.name,
-        type: file.type,
-        size: file.size
-      })
-
-      // Set proper headers for multipart form data
       const response = await fetch('/api/upload', {
         method: 'POST',
-        // Let browser set the Content-Type header automatically
         body: formData
       })
 
@@ -42,10 +34,6 @@ export default function Upload() {
 
       const data = await response.json()
       
-      if (!data.success) {
-        throw new Error(data.error || 'Upload failed')
-      }
-
       // Save to database
       const { error: dbError } = await supabase
         .from('posts')
