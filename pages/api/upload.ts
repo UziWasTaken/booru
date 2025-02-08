@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable from 'formidable'
+import formidable, { Fields, Files } from 'formidable'
 import fs from 'fs'
 import path from 'path'
 
@@ -52,7 +52,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     // Parse the form
-    const [fields, files] = await new Promise((resolve, reject) => {
+    const [fields, files] = await new Promise<[Fields, Files]>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) reject(err)
         else resolve([fields, files])
