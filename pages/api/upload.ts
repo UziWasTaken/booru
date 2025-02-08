@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import formidable from 'formidable'
+import formidable, { File } from 'formidable'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -39,7 +39,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const { files } = await parseForm(req)
-    const file = files.file?.[0] || files.file // Handle both array and single file cases
+    const uploadedFile = files.file as File | File[] | undefined
+    const file = Array.isArray(uploadedFile) ? uploadedFile[0] : uploadedFile
 
     if (!file) {
       return res.status(400).json({ error: 'No file uploaded' })
