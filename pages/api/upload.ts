@@ -2,7 +2,6 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
 import formidable, { Fields, Files, File } from 'formidable'
 import fs from 'fs'
-import path from 'path'
 
 export const config = {
   api: {
@@ -28,15 +27,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Create temp directory
-    const tmpDir = path.join(process.cwd(), 'tmp')
-    if (!fs.existsSync(tmpDir)) {
-      fs.mkdirSync(tmpDir, { recursive: true })
-    }
-
-    // Configure formidable
+    // Configure formidable to use Lambda's /tmp directory
     const form = formidable({
-      uploadDir: tmpDir,
+      uploadDir: '/tmp',
       keepExtensions: true,
       maxFileSize: 5 * 1024 * 1024, // 5MB limit
       multiples: false,
@@ -65,10 +58,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // Read file content
     const fileContent = await fs.promises.readFile(uploadedFile.filepath)
 
+    // Generate a clean filename
+    const timestamp = Date.now()
+    const cleanFilename = uploadedFile.originalFilename?.replace(/[^a-zA-Z0-9.-]/g, '_') || 'untitled'
+    const key = `uploads/${timestamp}-${cleanFilename}`
+
     // Upload to S3
     const uploadResult = await s3.upload({
-      Bucket: process.env.AWS_BUCKET_NAME || 'danbooru-uploads-prod',
-      Key: `uploads/${Date.now()}-${uploadedFile.originalFilename}`,
+      Bucket: process.env.AWS_BUCKET_NAME!,
+      Key: key,
       Body: fileContent,
       ContentType: uploadedFile.mimetype || 'application/octet-stream',
       ACL: 'public-read'
