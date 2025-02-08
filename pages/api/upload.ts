@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { File, Files } from 'formidable'
+import formidable, { File } from 'formidable'
 import fs from 'fs'
 
 export const config = {
@@ -29,29 +29,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     console.log('Starting file upload process...')
 
-    // Create upload directory if it doesn't exist
-    const uploadDir = '/tmp'
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
-
-    const options: formidable.Options = {
-      uploadDir,
+    const form = formidable({
+      uploadDir: '/tmp',
       keepExtensions: true,
       maxFileSize: 10 * 1024 * 1024, // 10MB
       multiples: false,
-      filename: (_name, _ext, part) => {
-        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`
-        return `${uniqueSuffix}-${part.originalFilename}`
-      },
-      filter: (part) => {
-        return part.name === 'file' && (part.mimetype?.includes('image/') || part.mimetype?.includes('video/')) || false
-      }
-    }
+    })
 
-    const form = formidable(options)
-
-    const [fields, files] = await new Promise<[formidable.Fields, Files]>((resolve, reject) => {
+    const [fields, files] = await new Promise<[formidable.Fields, formidable.Files]>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
         if (err) {
           reject(err)
@@ -61,12 +46,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     })
 
-    const fileArray = files.file
-    if (!fileArray || !Array.isArray(fileArray)) {
-      throw new Error('Invalid file upload')
-    }
-
-    const uploadedFile = fileArray[0]
+    const uploadedFile = files.file as File
     if (!uploadedFile) {
       throw new Error('No file uploaded')
     }
