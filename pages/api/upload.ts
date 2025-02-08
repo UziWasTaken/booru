@@ -27,12 +27,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Check content type
-  const contentType = req.headers['content-type']
-  if (!contentType?.includes('multipart/form-data')) {
-    return res.status(415).json({ error: 'Content type must be multipart/form-data' })
-  }
-
   try {
     // Create temp directory
     const tmpDir = path.join(process.cwd(), 'tmp')
@@ -45,10 +39,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       uploadDir: tmpDir,
       keepExtensions: true,
       maxFileSize: 5 * 1024 * 1024, // 5MB limit
-      filter: ({ mimetype }) => {
-        // Accept only images
-        return mimetype ? mimetype.includes('image/') : false
-      }
+      multiples: false,
     })
 
     // Parse the form
@@ -64,6 +55,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!uploadedFile) {
       throw new Error('No file uploaded')
     }
+
+    console.log('File received:', {
+      name: uploadedFile.originalFilename,
+      type: uploadedFile.mimetype,
+      size: uploadedFile.size
+    })
 
     // Read file content
     const fileContent = await fs.promises.readFile(uploadedFile.filepath)
