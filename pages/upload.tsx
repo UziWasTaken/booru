@@ -24,6 +24,8 @@ export default function Upload() {
 
       const response = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+        },
         body: formData
       })
 

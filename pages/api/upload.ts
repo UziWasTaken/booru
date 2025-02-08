@@ -14,9 +14,20 @@ const BUNNY_STORAGE_API = 'https://ny.storage.bunnycdn.com'
 // Parse form data
 const parseForm = (req: NextApiRequest) => {
   return new Promise<{ fields: any; files: any }>((resolve, reject) => {
-    const form = new multiparty.Form()
+    // Add proper configuration for multiparty
+    const form = new multiparty.Form({
+      maxFieldsSize: 100 * 1024 * 1024, // 100MB
+      maxFields: 1000,
+      maxFilesSize: 100 * 1024 * 1024, // 100MB
+      autoFiles: true,
+      uploadDir: '/tmp'
+    })
+
     form.parse(req, (err, fields, files) => {
-      if (err) reject(err)
+      if (err) {
+        console.error('Form parsing error:', err)
+        reject(err)
+      }
       resolve({ fields, files })
     })
   })
@@ -54,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         method: 'PUT',
         headers: {
           'AccessKey': process.env.BUNNY_API_KEY!,
-          'Content-Type': file.headers['content-type'],
+          'Content-Type': file.headers['content-type'] || 'application/octet-stream',
         },
         body: fileContent,
       }
@@ -80,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('Upload error:', error)
     return res.status(500).json({
       success: false,
-      error: error.message
+      error: error.message || 'Upload failed'
     })
   }
 } 
