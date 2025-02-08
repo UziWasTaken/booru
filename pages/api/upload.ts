@@ -1,7 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand } from '@aws-sdk/client-s3'
 import multiparty from 'multiparty'
 import fs from 'fs'
+import { s3Client } from '../../lib/aws-config'
 
 export const config = {
   api: {
@@ -14,15 +15,6 @@ export const config = {
 if (!process.env.AWS_BUCKET_NAME) {
   throw new Error('AWS_BUCKET_NAME environment variable is not defined')
 }
-
-// Configure S3 Client
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  }
-})
 
 // Parse form data
 const parseForm = (req: NextApiRequest) => {
