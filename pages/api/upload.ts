@@ -1,7 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { File } from 'formidable'
+import formidable from 'formidable'
 import fs from 'fs'
+import path from 'path'
 
 export const config = {
   api: {
@@ -17,84 +18,80 @@ if (!process.env.AWS_BUCKET_NAME) {
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION,
-  signatureVersion: 'v4'
+  region: process.env.AWS_REGION || 'us-east-1'
 })
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Only allow POST
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' })
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Check content type
+  const contentType = req.headers['content-type']
+  if (!contentType?.includes('multipart/form-data')) {
+    return res.status(415).json({ error: 'Content type must be multipart/form-data' })
   }
 
   try {
-    console.log('Starting file upload process...')
+    // Create temp directory
+    const tmpDir = path.join(process.cwd(), 'tmp')
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true })
+    }
 
+    // Configure formidable
     const form = formidable({
-      uploadDir: '/tmp',
+      uploadDir: tmpDir,
       keepExtensions: true,
-      maxFileSize: 10 * 1024 * 1024, // 10MB
-      multiples: false,
+      maxFileSize: 5 * 1024 * 1024, // 5MB limit
+      filter: ({ mimetype }) => {
+        // Accept only images
+        return mimetype ? mimetype.includes('image/') : false
+      }
     })
 
-    const [fields, files] = await new Promise<[formidable.Fields, formidable.Files]>((resolve, reject) => {
+    // Parse the form
+    const [fields, files] = await new Promise((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
-        if (err) {
-          reject(err)
-          return
-        }
-        resolve([fields, files])
+        if (err) reject(err)
+        else resolve([fields, files])
       })
     })
 
-    const uploadedFile = Array.isArray(files.file) ? files.file[0] : files.file
-    if (!uploadedFile) {
-      throw new Error('No file uploaded')
+    // Get the file
+    const file = files.file
+    if (!file || Array.isArray(file)) {
+      throw new Error('Invalid file upload')
     }
 
-    console.log('File received:', {
-      name: uploadedFile.originalFilename,
-      type: uploadedFile.mimetype,
-      size: uploadedFile.size
-    })
+    // Read file content
+    const fileContent = await fs.promises.readFile(file.filepath)
 
-    const fileContent = fs.readFileSync(uploadedFile.filepath)
-
-    const uploadParams = {
-      Bucket: process.env.AWS_BUCKET_NAME!,
-      Key: `posts/${uploadedFile.newFilename || uploadedFile.originalFilename}`,
+    // Upload to S3
+    const uploadResult = await s3.upload({
+      Bucket: process.env.AWS_BUCKET_NAME || 'danbooru-uploads-prod',
+      Key: `uploads/${Date.now()}-${file.originalFilename}`,
       Body: fileContent,
-      ContentType: uploadedFile.mimetype || 'application/octet-stream',
-      ACL: 'public-read',
-      Metadata: {
-        'original-name': uploadedFile.originalFilename || 'untitled',
-        'upload-date': new Date().toISOString(),
-        'content-type': uploadedFile.mimetype || 'application/octet-stream'
-      }
-    }
+      ContentType: file.mimetype || 'application/octet-stream',
+      ACL: 'public-read'
+    }).promise()
 
-    console.log('Uploading to S3...')
-    const uploadResult = await s3.upload(uploadParams).promise()
-    console.log('S3 upload successful:', uploadResult)
+    // Clean up temp file
+    await fs.promises.unlink(file.filepath)
 
-    try {
-      fs.unlinkSync(uploadedFile.filepath)
-      console.log('Temporary file cleaned up')
-    } catch (err) {
-      console.error('Failed to clean up temp file:', err)
-    }
-
-    res.status(200).json({ 
+    // Return success
+    return res.status(200).json({
+      success: true,
       url: uploadResult.Location,
-      key: uploadResult.Key,
-      success: true 
+      key: uploadResult.Key
     })
 
   } catch (error: any) {
     console.error('Upload error:', error)
-    res.status(500).json({ 
-      message: 'Upload failed', 
-      error: error.message || 'Unknown error',
-      success: false 
+    return res.status(500).json({
+      success: false,
+      error: error.message
     })
   }
 } 

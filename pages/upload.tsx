@@ -22,37 +22,45 @@ export default function Upload() {
       formData.append('file', file)
       formData.append('tags', tags)
 
-      // Upload to S3 through API route
-      const uploadRes = await fetch('/api/upload', {
+      console.log('Uploading file:', {
+        name: file.name,
+        type: file.type,
+        size: file.size
+      })
+
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       })
 
-      const data = await uploadRes.json()
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Upload failed')
+      }
 
-      if (!uploadRes.ok) {
+      const data = await response.json()
+      
+      if (!data.success) {
         throw new Error(data.error || 'Upload failed')
       }
 
-      if (!data.success) throw new Error(data.message)
-
-      // Save to Supabase
+      // Save to database
       const { error: dbError } = await supabase
         .from('posts')
         .insert([
           {
-            title: file.name,
             image_url: data.url,
             thumbnail_url: data.url,
-            tags: tags,
+            tags: tags
           }
         ])
 
       if (dbError) throw dbError
-      
+
       router.push('/')
     } catch (err: any) {
-      setError('Upload failed: ' + (err.message || 'Unknown error'))
+      console.error('Upload error:', err)
+      setError(err.message || 'Upload failed')
     } finally {
       setLoading(false)
     }
