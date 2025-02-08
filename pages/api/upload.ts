@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import multiparty from 'multiparty'
+import busboy from 'busboy'
 import fs from 'fs'
 
 export const config = {
@@ -11,25 +11,48 @@ export const config = {
 
 const BUNNY_STORAGE_API = 'https://ny.storage.bunnycdn.com'
 
-// Parse form data
+// Parse form data using busboy
 const parseForm = (req: NextApiRequest) => {
-  return new Promise<{ fields: any; files: any }>((resolve, reject) => {
-    // Add proper configuration for multiparty
-    const form = new multiparty.Form({
-      maxFieldsSize: 100 * 1024 * 1024, // 100MB
-      maxFields: 1000,
-      maxFilesSize: 100 * 1024 * 1024, // 100MB
-      autoFiles: true,
-      uploadDir: '/tmp'
+  return new Promise<{ fields: any; file: any }>((resolve, reject) => {
+    const fields: any = {}
+    let fileData: any = null
+
+    const bb = busboy({ 
+      headers: req.headers,
+      limits: {
+        fileSize: 100 * 1024 * 1024, // 100MB
+      }
     })
 
-    form.parse(req, (err, fields, files) => {
-      if (err) {
-        console.error('Form parsing error:', err)
-        reject(err)
-      }
-      resolve({ fields, files })
+    bb.on('field', (name, val) => {
+      fields[name] = val
     })
+
+    bb.on('file', async (name, file, info) => {
+      const chunks: Buffer[] = []
+      
+      file.on('data', (chunk) => {
+        chunks.push(chunk)
+      })
+
+      file.on('end', () => {
+        fileData = {
+          buffer: Buffer.concat(chunks),
+          filename: info.filename,
+          mimeType: info.mimeType
+        }
+      })
+    })
+
+    bb.on('finish', () => {
+      resolve({ fields, file: fileData })
+    })
+
+    bb.on('error', (err) => {
+      reject(err)
+    })
+
+    req.pipe(bb)
   })
 }
 
@@ -39,23 +62,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Parse the multipart form data
-    const { fields, files } = await parseForm(req)
-    const file = files.file?.[0]
+    // Parse the form data
+    const { fields, file } = await parseForm(req)
 
     if (!file) {
       return res.status(400).json({ error: 'No file uploaded' })
     }
 
     console.log('File received:', {
-      name: file.originalFilename,
-      type: file.headers['content-type'],
-      size: file.size
+      name: file.filename,
+      type: file.mimeType,
+      size: file.buffer.length
     })
 
-    // Read file content
-    const fileContent = await fs.promises.readFile(file.path)
-    const fileName = `${Date.now()}-${file.originalFilename}`
+    const fileName = `${Date.now()}-${file.filename}`
     const fullPath = `images/${fileName}`
 
     // Upload to Bunny Storage
@@ -65,18 +85,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         method: 'PUT',
         headers: {
           'AccessKey': process.env.BUNNY_API_KEY!,
-          'Content-Type': file.headers['content-type'] || 'application/octet-stream',
+          'Content-Type': file.mimeType,
         },
-        body: fileContent,
+        body: file.buffer,
       }
     )
 
     if (!uploadResponse.ok) {
       throw new Error(`Bunny upload failed: ${uploadResponse.statusText}`)
     }
-
-    // Clean up temp file
-    await fs.promises.unlink(file.path)
 
     // Return CDN URL with your custom domain
     const cdnUrl = `${process.env.BUNNY_CDN_URL}/${fullPath}`
