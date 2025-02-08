@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import AWS from 'aws-sdk'
-import formidable, { Fields, Files } from 'formidable'
+import formidable, { Fields, Files, File } from 'formidable'
 import fs from 'fs'
 import path from 'path'
 
@@ -60,25 +60,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
 
     // Get the file
-    const file = files.file
-    if (!file || Array.isArray(file)) {
-      throw new Error('Invalid file upload')
+    const uploadedFile = files.file as unknown as File
+    if (!uploadedFile) {
+      throw new Error('No file uploaded')
     }
 
     // Read file content
-    const fileContent = await fs.promises.readFile(file.filepath)
+    const fileContent = await fs.promises.readFile(uploadedFile.filepath)
 
     // Upload to S3
     const uploadResult = await s3.upload({
       Bucket: process.env.AWS_BUCKET_NAME || 'danbooru-uploads-prod',
-      Key: `uploads/${Date.now()}-${file.originalFilename}`,
+      Key: `uploads/${Date.now()}-${uploadedFile.originalFilename}`,
       Body: fileContent,
-      ContentType: file.mimetype || 'application/octet-stream',
+      ContentType: uploadedFile.mimetype || 'application/octet-stream',
       ACL: 'public-read'
     }).promise()
 
     // Clean up temp file
-    await fs.promises.unlink(file.filepath)
+    await fs.promises.unlink(uploadedFile.filepath)
 
     // Return success
     return res.status(200).json({
