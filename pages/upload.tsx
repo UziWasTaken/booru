@@ -28,6 +28,7 @@ export default function Upload() {
         size: file.size
       })
 
+      // Don't set any headers, let the browser handle it
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData

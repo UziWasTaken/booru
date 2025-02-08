@@ -18,7 +18,8 @@ const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION || 'us-east-1',
-  signatureVersion: 'v4'
+  signatureVersion: 'v4',
+  endpoint: `https://${process.env.AWS_ACCESS_POINT}.s3-accesspoint.${process.env.AWS_REGION}.amazonaws.com`
 })
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -26,18 +27,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  // Check if content type is multipart
+  if (!req.headers['content-type']?.includes('multipart/form-data')) {
+    return res.status(415).json({ error: 'Content type must be multipart/form-data' })
+  }
+
   try {
-    // Create form parser
+    // Create form parser with specific options
     const form = formidable({
       uploadDir: '/tmp',
       keepExtensions: true,
       maxFileSize: 5 * 1024 * 1024,
+      multiples: false,
+      encoding: 'utf-8',
+      hashAlgorithm: false,
+      allowEmptyFiles: false
     })
 
     // Parse form with Promise wrapper
     const formData = await new Promise<{ fields: Fields; files: Files }>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
-        if (err) return reject(err)
+        if (err) {
+          console.error('Form parse error:', err)
+          return reject(err)
+        }
         resolve({ fields, files })
       })
     })
@@ -46,6 +59,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (!file) {
       throw new Error('No file uploaded')
     }
+
+    console.log('File received:', {
+      name: file.originalFilename,
+      type: file.mimetype,
+      size: file.size,
+      path: file.filepath
+    })
 
     // Read file
     const fileBuffer = await fs.promises.readFile(file.filepath)
