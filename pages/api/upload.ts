@@ -17,65 +17,51 @@ if (!process.env.AWS_BUCKET_NAME) {
 const s3 = new AWS.S3({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
   secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  region: process.env.AWS_REGION || 'us-east-1'
+  region: process.env.AWS_REGION || 'us-east-1',
+  signatureVersion: 'v4'
 })
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // Only allow POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
   try {
-    // Configure formidable to use Lambda's /tmp directory
+    // Create form parser
     const form = formidable({
       uploadDir: '/tmp',
       keepExtensions: true,
-      maxFileSize: 5 * 1024 * 1024, // 5MB limit
-      multiples: false,
+      maxFileSize: 5 * 1024 * 1024,
     })
 
-    // Parse the form
-    const [fields, files] = await new Promise<[Fields, Files]>((resolve, reject) => {
+    // Parse form with Promise wrapper
+    const formData = await new Promise<{ fields: Fields; files: Files }>((resolve, reject) => {
       form.parse(req, (err, fields, files) => {
-        if (err) reject(err)
-        else resolve([fields, files])
+        if (err) return reject(err)
+        resolve({ fields, files })
       })
     })
 
-    // Get the file
-    const uploadedFile = files.file as unknown as File
-    if (!uploadedFile) {
+    const file = formData.files.file as unknown as File
+    if (!file) {
       throw new Error('No file uploaded')
     }
 
-    console.log('File received:', {
-      name: uploadedFile.originalFilename,
-      type: uploadedFile.mimetype,
-      size: uploadedFile.size
-    })
-
-    // Read file content
-    const fileContent = await fs.promises.readFile(uploadedFile.filepath)
-
-    // Generate a clean filename
-    const timestamp = Date.now()
-    const cleanFilename = uploadedFile.originalFilename?.replace(/[^a-zA-Z0-9.-]/g, '_') || 'untitled'
-    const key = `uploads/${timestamp}-${cleanFilename}`
+    // Read file
+    const fileBuffer = await fs.promises.readFile(file.filepath)
 
     // Upload to S3
     const uploadResult = await s3.upload({
       Bucket: process.env.AWS_BUCKET_NAME!,
-      Key: key,
-      Body: fileContent,
-      ContentType: uploadedFile.mimetype || 'application/octet-stream',
+      Key: `uploads/${Date.now()}-${file.originalFilename}`,
+      Body: fileBuffer,
+      ContentType: file.mimetype || 'application/octet-stream',
       ACL: 'public-read'
     }).promise()
 
-    // Clean up temp file
-    await fs.promises.unlink(uploadedFile.filepath)
+    // Cleanup
+    await fs.promises.unlink(file.filepath)
 
-    // Return success
     return res.status(200).json({
       success: true,
       url: uploadResult.Location,
