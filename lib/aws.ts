@@ -1,33 +1,37 @@
-import AWS from 'aws-sdk'
+import { S3Client } from '@aws-sdk/client-s3'
 
 // Configure AWS on the server side
+let s3Client: S3Client | null = null
+
 if (typeof window === 'undefined') {
-  AWS.config.update({
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    region: process.env.AWS_REGION || 'us-east-1'
+  s3Client = new S3Client({
+    region: process.env.AWS_REGION || 'us-east-1',
+    credentials: {
+      accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY!,
+    }
   })
 }
 
-export const s3 = new AWS.S3()
-
 export async function uploadToS3(file: File, path: string): Promise<string> {
-  // Create a new S3 instance with credentials for client-side
-  const s3Client = new AWS.S3({
-    accessKeyId: process.env.NEXT_PUBLIC_AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.NEXT_PUBLIC_AWS_SECRET_ACCESS_KEY,
-    region: process.env.NEXT_PUBLIC_AWS_REGION || 'us-east-1'
-  })
+  if (!s3Client) {
+    throw new Error('S3 client not initialized')
+  }
 
+  const { PutObjectCommand } = await import('@aws-sdk/client-s3')
+  
   const fileBuffer = Buffer.from(await file.arrayBuffer())
-  const params = {
-    Bucket: process.env.NEXT_PUBLIC_AWS_BUCKET_NAME || 'danbooru-uploads-prod',
+  const command = new PutObjectCommand({
+    Bucket: process.env.NEXT_PUBLIC_AWS_BUCKET_NAME,
     Key: `${path}/${Date.now()}-${file.name}`,
     Body: fileBuffer,
     ContentType: file.type,
     ACL: 'public-read'
-  }
+  })
 
-  const result = await s3Client.upload(params).promise()
-  return result.Location
-} 
+  await s3Client.send(command)
+  
+  return `https://${process.env.NEXT_PUBLIC_AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${path}/${file.name}`
+}
+
+export default s3Client 
