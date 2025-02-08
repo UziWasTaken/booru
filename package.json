@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
-    "aws-sdk": "^2.1520.0",
+    "@aws-sdk/client-s3": "^3.485.0",
     "multiparty": "^4.2.3",
     "busboy": "^1.6.0",
     "next": "^14.0.3",
